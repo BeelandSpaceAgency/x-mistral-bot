@@ -39,7 +39,18 @@ HISTORY_FILE = "history.txt"
 def load_history():
     if os.path.exists(HISTORY_FILE):
         with open(HISTORY_FILE, "r") as f:
-            return json.load(f)
+            content = f.read().strip()
+            if content:  # Only parse if there's content
+                try:
+                    f.seek(0)  # Reset file pointer after read
+                    return json.load(f)
+                except json.JSONDecodeError as e:
+                    print(f"Invalid JSON in history.txt: {e}, resetting to default")
+                    return {topic: [] for topic in topics}
+            else:
+                print("Empty history.txt, initializing default")
+                return {topic: [] for topic in topics}
+    print("No history.txt found, creating default")
     return {topic: [] for topic in topics}
 
 def save_history(history):
