@@ -37,21 +37,20 @@ emojis = {
 HISTORY_FILE = "history.txt"
 
 def load_history():
-    if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE, "r") as f:
-            content = f.read().strip()
-            if content:  # Only parse if there's content
-                try:
-                    f.seek(0)  # Reset file pointer after read
-                    return json.load(f)
-                except json.JSONDecodeError as e:
-                    print(f"Invalid JSON in history.txt: {e}, resetting to default")
-                    return {topic: [] for topic in topics}
-            else:
-                print("Empty history.txt, initializing default")
-                return {topic: [] for topic in topics}
-    print("No history.txt found, creating default")
-    return {topic: [] for topic in topics}
+    default_history = {topic: [] for topic in topics}
+    if not os.path.exists(HISTORY_FILE):
+        print(f"{HISTORY_FILE} not found, initializing with default")
+        return default_history
+    with open(HISTORY_FILE, "r") as f:
+        content = f.read().strip()
+        if not content:
+            print(f"{HISTORY_FILE} is empty, initializing with default")
+            return default_history
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            print(f"Invalid JSON in {HISTORY_FILE}: {e}, resetting to default")
+            return default_history
 
 def save_history(history):
     with open(HISTORY_FILE, "w") as f:
@@ -93,6 +92,7 @@ def fetch_pexels_image(query):
         return None
 
 def generate_content(topic):
+    print(f"Generating content for topic: {topic}")
     history = load_history()
     used_subtopics = history.get(topic, [])
 
@@ -104,6 +104,7 @@ def generate_content(topic):
             "Output only the subtopic name, <30 chars."
         )
         subtopic = query_hf(prompt)
+        print(f"Generated subtopic attempt: {subtopic}")
         if subtopic and subtopic not in used_subtopics and len(subtopic) < 30:
             break
     else:
@@ -122,6 +123,7 @@ def generate_content(topic):
         print("Thread generation failed")
         return None
     thread_parts = [p.strip() for p in thread_text.split("||")]
+    print(f"Thread parts: {thread_parts}")
     if len(thread_parts) != 4:  # Main + 3
         print(f"Invalid thread format: {thread_parts}")
         return None
@@ -133,6 +135,7 @@ def generate_content(topic):
     )
     keywords = query_hf(prompt) or f"{topic},photo,image"
     keywords = [k.strip() for k in keywords.split(",")][:3]
+    print(f"Image keywords: {keywords}")
 
     # Update history
     used_subtopics.append(subtopic)
@@ -148,6 +151,7 @@ def generate_content(topic):
     }
 
 def post_thread():
+    print("Starting post_thread")
     # Load or initialize topic index
     index_file = "topic_index.txt"
     if os.path.exists(index_file):
@@ -155,6 +159,7 @@ def post_thread():
             topic_index = int(f.read().strip())
     else:
         topic_index = 0
+    print(f"Topic index: {topic_index}")
 
     topic = topics[topic_index]
     topic_index = (topic_index + 1) % len(topics)
@@ -173,6 +178,7 @@ def post_thread():
         for i in range(4):  # Main + 3 tweets
             keyword = post["image_keywords"][i % len(post["image_keywords"])]
             img_path = fetch_pexels_image(keyword)
+            print(f"Image fetch for {keyword}: {img_path}")
             if img_path and os.path.exists(img_path):
                 media = api.media_upload(img_path)
                 media_ids.append(media.media_id)
@@ -202,6 +208,7 @@ def post_thread():
             print(f"Posted thread part: {part}")
 
         # Save topic index
+        print(f"Saving topic index: {topic_index}")
         with open(index_file, "w") as f:
             f.write(str(topic_index))
 
