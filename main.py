@@ -16,12 +16,17 @@ PEXELS_KEY = os.environ["PEXELS_KEY"]
 HF_API_URL = "https://api-inference.huggingface.co/models/mixtral-8x7b-instruct-v0.1"
 
 # Authenticate X API
-client = tweepy.Client(
-    consumer_key=API_KEY,
-    consumer_secret=API_SECRET,
-    access_token=ACCESS_TOKEN,
-    access_token_secret=ACCESS_TOKEN_SECRET
-)
+print("Authenticating X API")
+try:
+    client = tweepy.Client(
+        consumer_key=API_KEY,
+        consumer_secret=API_SECRET,
+        access_token=ACCESS_TOKEN,
+        access_token_secret=ACCESS_TOKEN_SECRET
+    )
+except Exception as e:
+    print(f"X authentication failed: {e}")
+    raise
 
 # Topics and emojis
 topics = ["self_improvement", "studying", "fun_facts", "ai_tools", "macos_tips"]
@@ -53,10 +58,12 @@ def load_history():
             return default_history
 
 def save_history(history):
+    print(f"Saving history to {HISTORY_FILE}")
     with open(HISTORY_FILE, "w") as f:
         json.dump(history, f)
 
 def query_hf(prompt):
+    print(f"Sending HF query: {prompt[:50]}...")
     headers = {"Authorization": f"Bearer {HF_TOKEN}"}
     payload = {
         "inputs": f"[INST] {prompt} [/INST]",
@@ -66,6 +73,7 @@ def query_hf(prompt):
         response = requests.post(HF_API_URL, headers=headers, json=payload)
         if response.status_code == 200:
             text = response.json()[0]["generated_text"].split("[/INST]")[-1].strip()
+            print(f"HF response: {text[:50]}...")
             return text
         print(f"HF API error: {response.status_code}, {response.text}")
         return None
@@ -74,18 +82,24 @@ def query_hf(prompt):
         return None
 
 def fetch_pexels_image(query):
+    print(f"Fetching Pexels image for query: {query}")
     url = f"https://api.pexels.com/v1/search?query={query}&per_page=1"
     headers = {"Authorization": PEXELS_KEY}
     try:
         response = requests.get(url, headers=headers)
         if response.status_code == 200:
-            img_url = response.json()["photos"][0]["src"]["medium"]
-            img_data = requests.get(img_url).content
-            img_path = f"temp_{random.randint(1000, 9999)}.jpg"
-            with open(img_path, "wb") as f:
-                f.write(img_data)
-            return img_path
-        print(f"Pexels API error: {response.status_code}")
+            photos = response.json().get("photos", [])
+            if photos:
+                img_url = photos[0]["src"]["medium"]
+                img_data = requests.get(img_url).content
+                img_path = f"temp_{random.randint(1000, 9999)}.jpg"
+                with open(img_path, "wb") as f:
+                    f.write(img_data)
+                print(f"Pexels image saved: {img_path}")
+                return img_path
+            print("No photos found for query")
+            return None
+        print(f"Pexels API error: {response.status_code}, {response.text}")
         return None
     except Exception as e:
         print(f"Pexels fetch failed: {e}")
