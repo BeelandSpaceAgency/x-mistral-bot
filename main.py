@@ -118,6 +118,9 @@ def generate_content(topic):
             "Output only the subtopic name, <30 chars."
         )
         subtopic = query_hf(prompt)
+        # Truncate to 30 chars
+        if subtopic:
+            subtopic = subtopic[:30]
         print(f"Generated subtopic attempt: {subtopic}")
         if subtopic and subtopic not in used_subtopics and len(subtopic) < 30:
             break
@@ -130,7 +133,7 @@ def generate_content(topic):
         f"Write a 3-tweet thread on {subtopic} for {topic.replace('_', ' ')}. "
         "Each tweet <280 chars, based on verified info, 1-2 hashtags. "
         f"Main tweet starts with 🧵, parts use 1️⃣, 2️⃣, 3️⃣. Include {emojis[topic]}. "
-        "Separate tweets with ||. No speculation."
+        "Output exactly 4 parts: main tweet and 3 follow-ups, separated by ||. No speculation."
     )
     thread_text = query_hf(prompt)
     if not thread_text:
@@ -138,7 +141,7 @@ def generate_content(topic):
         return None
     thread_parts = [p.strip() for p in thread_text.split("||")]
     print(f"Thread parts: {thread_parts}")
-    if len(thread_parts) != 4:  # Main + 3
+    if len(thread_parts) not in [3, 4]:  # Accept 3 or 4 parts
         print(f"Invalid thread format: {thread_parts}")
         return None
 
@@ -158,7 +161,7 @@ def generate_content(topic):
 
     return {
         "main_tweet": thread_parts[0],
-        "thread": thread_parts[1:],
+        "thread": thread_parts[1:] if len(thread_parts) > 1 else [],
         "image_keywords": keywords,
         "topic": topic,
         "subtopic": subtopic
@@ -189,7 +192,9 @@ def post_thread():
         auth = tweepy.OAuth1UserHandler(API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
         api = tweepy.API(auth)
 
-        for i in range(4):  # Main + 3 tweets
+        # Fetch images for main + thread parts (up to 4)
+        num_images = min(len([post["main_tweet"]] + post["thread"]), 4)
+        for i in range(num_images):
             keyword = post["image_keywords"][i % len(post["image_keywords"])]
             img_path = fetch_pexels_image(keyword)
             print(f"Image fetch for {keyword}: {img_path}")
@@ -204,7 +209,7 @@ def post_thread():
         # Post main tweet
         response = client.create_tweet(
             text=post["main_tweet"],
-            media_ids=[media_ids[0]] if media_ids[0] else None
+            media_ids=[media_ids[0]] if media_ids and media_ids[0] else None
         )
         tweet_id = response.data["id"]
         print(f"Posted main: {post['main_tweet']} (Subtopic: {post['subtopic']})")
@@ -212,7 +217,7 @@ def post_thread():
         # Post thread
         last_tweet_id = tweet_id
         for i, part in enumerate(post["thread"]):
-            media_id = media_ids[i + 1] if i + 1 < len(media_ids) else None
+            media_id = media_ids[i + 1] if i + 1 < len(media_ids) and media_ids[i + 1] else None
             response = client.create_tweet(
                 text=part,
                 in_reply_to_tweet_id=last_tweet_id,
