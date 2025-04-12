@@ -113,9 +113,9 @@ def generate_content(topic):
     # Generate subtopic
     for _ in range(3):
         prompt = (
-            f"Suggest a unique, specific subtopic for {topic.replace('_', ' ')}. "
+            f"Suggest a unique subtopic for {topic.replace('_', ' ')}. "
             f"Avoid: {', '.join(used_subtopics) or 'none'}. "
-            "Output only the subtopic name, <30 chars."
+            "Return one subtopic name, max 30 chars, no explanation."
         )
         subtopic = query_hf(prompt)
         # Truncate to 30 chars
@@ -133,17 +133,31 @@ def generate_content(topic):
         f"Write a 3-tweet thread on {subtopic} for {topic.replace('_', ' ')}. "
         "Each tweet <280 chars, based on verified info, 1-2 hashtags. "
         f"Main tweet starts with 🧵, parts use 1️⃣, 2️⃣, 3️⃣. Include {emojis[topic]}. "
-        "Output exactly 4 parts: main tweet and 3 follow-ups, separated by ||. No speculation."
+        "Output exactly 4 parts (main + 3 follow-ups) separated by ||. "
+        "Do NOT use single output or '/'. Example: 🧵main||1️⃣part1||2️⃣part2||3️⃣part3."
     )
     thread_text = query_hf(prompt)
     if not thread_text:
-        print("Thread generation failed")
-        return None
-    thread_parts = [p.strip() for p in thread_text.split("||")]
-    print(f"Thread parts: {thread_parts}")
-    if len(thread_parts) not in [3, 4]:  # Accept 3 or 4 parts
-        print(f"Invalid thread format: {thread_parts}")
-        return None
+        print("Thread generation failed, using fallback")
+        # Fallback thread
+        thread_parts = [
+            f"🧵 Kickstart {topic.replace('_', ' ')} today! {emojis[topic]} #Growth",
+            f"1️⃣ Set one small goal daily. Consistency wins! {emojis[topic]} #Mindset",
+            f"2️⃣ Reflect on progress weekly. Adjust as needed. {emojis[topic]} #SelfImprovement",
+            f"3️⃣ Share your tips below! Let’s grow together. {emojis[topic]} #Community"
+        ]
+    else:
+        thread_parts = [p.strip() for p in thread_text.split("||")]
+        print(f"Thread parts: {thread_parts}")
+        if len(thread_parts) not in [3, 4]:
+            print(f"Invalid thread format: {thread_parts}, using fallback")
+            # Fallback thread
+            thread_parts = [
+                f"🧵 Kickstart {topic.replace('_', ' ')} today! {emojis[topic]} #Growth",
+                f"1️⃣ Set one small goal daily. Consistency wins! {emojis[topic]} #Mindset",
+                f"2️⃣ Reflect on progress weekly. Adjust as needed. {emojis[topic]} #SelfImprovement",
+                f"3️⃣ Share your tips below! Let’s grow together. {emojis[topic]} #Community"
+            ]
 
     # Generate image keywords
     prompt = (
