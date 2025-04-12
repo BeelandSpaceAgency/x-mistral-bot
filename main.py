@@ -13,7 +13,7 @@ HF_TOKEN = os.environ["HF_TOKEN"]
 PEXELS_KEY = os.environ["PEXELS_KEY"]
 
 # Hugging Face API
-HF_API_URL = "https://api-inference.huggingface.co/models/mixtral-8x7b-instruct-v0.1"
+HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1"
 
 # Authenticate X API
 print("Authenticating X API")
