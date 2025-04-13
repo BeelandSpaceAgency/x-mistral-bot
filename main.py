@@ -15,7 +15,7 @@ PEXELS_KEY = os.environ["PEXELS_KEY"]
 # Hugging Face API
 HF_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mixtral-8x7B-Instruct-v0.1"
 
-# Authenticate X API
+# Authenticate X API (kept for potential future use, but not used now)
 print("Authenticating X API")
 try:
     client = tweepy.Client(
@@ -25,8 +25,7 @@ try:
         access_token_secret=ACCESS_TOKEN_SECRET
     )
 except Exception as e:
-    print(f"X authentication failed: {e}")
-    raise
+    print(f"X authentication failed: {e}, proceeding without posting")
 
 # Topics and emojis
 topics = ["self_improvement", "studying", "fun_facts", "ai_tools", "macos_tips"]
@@ -164,8 +163,12 @@ def generate_content(topic):
         f"Suggest 3 image keywords for {subtopic} ({topic.replace('_', ' ')}). "
         "Output: keyword1,keyword2,keyword3"
     )
-    keywords = query_hf(prompt) or f"{topic},photo,image"
-    keywords = [k.strip() for k in keywords.split(",")][:3]
+    keywords_text = query_hf(prompt) or f"{topic},photo,image"
+    # Clean and split keywords
+    keywords = [k.strip().split('. ')[-1] for k in keywords_text.split('\n') if k.strip()]
+    if len(keywords) < 3:
+        keywords = keywords + [topic, "photo", "image"][:3 - len(keywords)]
+    keywords = keywords[:3]
     print(f"Image keywords: {keywords}")
 
     # Update history
@@ -201,44 +204,32 @@ def post_thread():
         return
 
     try:
-        # Fetch images
-        media_ids = []
-        auth = tweepy.OAuth1UserHandler(API_KEY, API_SECRET, ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
-        api = tweepy.API(auth)
-
-        # Fetch images for main + thread parts (up to 4)
-        num_images = min(len([post["main_tweet"]] + post["thread"]), 4)
-        for i in range(num_images):
+        # Fetch images (for keywords, though manual posting may skip images)
+        image_urls = []
+        for i in range(min(len([post["main_tweet"]] + post["thread"]), 4)):
             keyword = post["image_keywords"][i % len(post["image_keywords"])]
             img_path = fetch_pexels_image(keyword)
             print(f"Image fetch for {keyword}: {img_path}")
             if img_path and os.path.exists(img_path):
-                media = api.media_upload(img_path)
-                media_ids.append(media.media_id)
+                image_urls.append(f"Pexels image for {keyword}: {img_path}")
                 os.remove(img_path)
             else:
-                media_ids.append(None)
+                image_urls.append(f"No image for {keyword}")
                 print(f"Image fetch failed for keyword: {keyword}")
 
-        # Post main tweet
-        response = client.create_tweet(
-            text=post["main_tweet"],
-            media_ids=[media_ids[0]] if media_ids and media_ids[0] else None
-        )
-        tweet_id = response.data["id"]
-        print(f"Posted main: {post['main_tweet']} (Subtopic: {post['subtopic']})")
-
-        # Post thread
-        last_tweet_id = tweet_id
-        for i, part in enumerate(post["thread"]):
-            media_id = media_ids[i + 1] if i + 1 < len(media_ids) and media_ids[i + 1] else None
-            response = client.create_tweet(
-                text=part,
-                in_reply_to_tweet_id=last_tweet_id,
-                media_ids=[media_id] if media_id else None
-            )
-            last_tweet_id = response.data["id"]
-            print(f"Posted thread part: {part}")
+        # Save thread to threads.txt
+        output_file = "threads.txt"
+        with open(output_file, "a") as f:
+            f.write(f"--- Thread {topic_index} ---\n")
+            f.write(f"Topic: {post['topic']}\n")
+            f.write(f"Subtopic: {post['subtopic']}\n")
+            f.write(f"Main Tweet: {post['main_tweet']}\n")
+            for i, part in enumerate(post['thread']):
+                f.write(f"Part {i+1}: {part}\n")
+            for i, url in enumerate(image_urls):
+                f.write(f"Image {i+1}: {url}\n")
+            f.write("\n")
+        print(f"Saved thread to {output_file}")
 
         # Save topic index
         print(f"Saving topic index: {topic_index}")
@@ -246,7 +237,8 @@ def post_thread():
             f.write(str(topic_index))
 
     except Exception as e:
-        print(f"Posting failed: {e}")
+        print(f"Saving thread failed: {e}")
+        raise
 
 if __name__ == "__main__":
     post_thread()
