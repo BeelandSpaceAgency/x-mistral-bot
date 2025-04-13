@@ -1,1 +1,1 @@
-{"self_improvement": ["self_improvement_general", "self_improvement_general", "self_improvement_general", "self_improvement_general"]}
+{"self_improvement": ["self_improvement_general", "self_improvement_general", "self_improvement_general", "self_improvement_general"], "studying": ["studying_general"]}
